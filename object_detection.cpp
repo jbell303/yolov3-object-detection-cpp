@@ -9,6 +9,9 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
+// include helper file
+#include "helper.h"
+
 // parse the command line arguments
 const std::string keys =
 "{help h usage ? || usage: object_detection.exe --image <path_to_image> --yolo <path_to_yolo_directory> --confidence 0.5 --threshold 0.3}"
@@ -16,24 +19,6 @@ const std::string keys =
 "{@yolo d || path to yolo model configuration directory}"
 "{confidence c |0.5| minimum probability to filter weak detections}"
 "{threshold t |0.3| threshold when applying non-maximum suppression}";
-
-
-// random color generator
-static cv::Scalar randomColor() {
-    return cv::Scalar(rand() % 255, rand() % 255, rand() % 255);
-}
-
-// get output names
-static std::vector<std::string> getOutputLayerNames(const cv::dnn::Net& net)
-{
-    std::vector<std::string> layerNames = net.getLayerNames();
-    std::vector<std::string> outputLayers;
-    for ( auto i : net.getUnconnectedOutLayers())
-    {
-        outputLayers.push_back(layerNames[(double)i - 1]);
-    }
-    return outputLayers;
-}
 
 int main(int argc, char** argv)
 {
@@ -71,7 +56,7 @@ int main(int argc, char** argv)
     // select random colors for our class labels
     for (int i = 0; i < labels.size(); i++)
     {
-        colors.emplace_back(randomColor());
+        colors.emplace_back(Helper::randomColor());
     }
 
     // derive that paths to the weights and model configuration
@@ -104,7 +89,7 @@ int main(int argc, char** argv)
     auto width = image.size().width;
 
     // determine only the *output* layer nanes that we need from YOLO
-    std::vector<std::string> ln = getOutputLayerNames(net);
+    std::vector<std::string> ln = Helper::getOutputLayerNames(net);
 
     /* construct a blob from the input image and then perform a forward
     // pass of the YOLO object detector, giving us our bounding boxes and 
@@ -125,39 +110,15 @@ int main(int argc, char** argv)
     // class IDs, respectively
     std::vector<cv::Rect> boxes;
     std::vector<float> confidences;
-    std::vector<int> classIDs;
+    std::vector<int> classIds;
+    float conf = parser.get<float>("confidence");
 
-    // loop over each of the layer outputs
-    for (size_t i = 0; i < layerOutputs.size(); ++i)
-    {
-        float* data = (float*)layerOutputs[i].data;
-        for (int j = 0; j < layerOutputs[i].rows; ++j, data += layerOutputs[i].cols)
-        {
-            cv::Mat scores = layerOutputs[i].row(j).colRange(5, layerOutputs[i].cols);
-            cv::Point classIdPoint;
-            double confidence;
-            // get the value and location of the maximum score
-            cv::minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-            if (confidence > parser.get<float>("confidence"))
-            {
-                int centerX = (int)(data[0] * image.cols);
-                int centerY = (int)(data[1] * image.rows);
-                int width = (int)(data[2] * image.cols);
-                int height = (int)(data[3] * image.rows);
-                int left = centerX - width / 2;
-                int top = centerY - height / 2;
-
-                classIDs.push_back(classIdPoint.x);
-                confidences.push_back((float)confidence);
-                boxes.push_back(cv::Rect(left, top, width, height));
-            }
-        }
-    }
+    Helper::postProcess(layerOutputs, image, boxes, confidences, classIds, conf);
 
     // apply non-maxima suppression to suppress weak, overlapping bounding
     // boxes
     std::vector<int> idxs;
-    cv::dnn::NMSBoxes(boxes, confidences, parser.get<float>("confidence"),
+    cv::dnn::NMSBoxes(boxes, confidences, conf,
         parser.get<float>("threshold"), idxs);
 
     // ensure at least one detection exists
@@ -173,10 +134,10 @@ int main(int argc, char** argv)
             auto h = boxes[i].height;
 
             // draw a bounding box rectangle and label on the image
-            cv::Scalar color = colors[classIDs[i]];
+            cv::Scalar color = colors[classIds[i]];
             cv::rectangle(image, cv::Rect(x, y, w, h), color, 2);
             std::ostringstream stringstream;
-            stringstream << labels[classIDs[i]] << ": " << cv::format("%.3f", confidences[i]);
+            stringstream << labels[classIds[i]] << ": " << cv::format("%.3f", confidences[i]);
             std::string text = stringstream.str();
             cv::putText(image, text, cv::Point(x, y - 5), cv::FONT_HERSHEY_SIMPLEX,
                 0.5, color, 2);
@@ -189,3 +150,4 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
