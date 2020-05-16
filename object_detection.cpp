@@ -54,7 +54,8 @@ int main(int argc, char** argv)
     while (std::getline(fstream, line))
         labels.emplace_back(line);
 
-    
+    // generate bounding box colors for each class
+    std::vector<cv::Scalar> colors = Helper::getColors(labels);
 
     // derive that paths to the weights and model configuration
     weightsPath = yoloPath + "yolov3.weights";
@@ -66,14 +67,14 @@ int main(int argc, char** argv)
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA); // use GPU if available, reverts to CPU
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
 
-    // load our input image and grab its spatial dimensions
-    if (!parser.has("@image") && !parser.has("@video"))
-    {
-        parser.printMessage();
-        return 0;
-    }
+    // determine only the *output* layer nanes that we need from YOLO
+    std::vector<std::string> ln = Helper::getOutputLayerNames(net);
 
+    // initialize image, video capture and video writer
     cv::Mat image;
+    cv::VideoCapture vs;
+    cv::VideoWriter writer;
+    int totalFrames;
 
     if (parser.has("@image"))
     {
@@ -85,40 +86,102 @@ int main(int argc, char** argv)
         catch (...)
         {
             std::cout << "unable to load image at: " << imagePath << std::endl;
+            return 0;
         }
     }
+    else if (parser.has("@video") && parser.has("@output"))
+    {
+        std::string videoPath = parser.get<std::string>("@video");
+        try
+        {
+            vs = cv::VideoCapture(videoPath);
+            totalFrames = vs.get(cv::CAP_PROP_FRAME_COUNT);
+        }
+        catch (...)
+        {
+            std::cout << "unagle to load video at: " << videoPath << std::endl;
+            return 0;
+        }
+        auto fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
+        std::string output = parser.get<std::string>("@output");
+        try
+        {
+            writer = cv::VideoWriter(output, fourcc, 30,
+                cv::Size(vs.get(cv::CAP_PROP_FRAME_WIDTH), vs.get(cv::CAP_PROP_FRAME_HEIGHT)));
+        }
+        catch (...)
+        {
+            std::cout << "unagle to create video at: " << output << std::endl;
+            return 0;
+        }
+        std::cout << "[INFO] processing video file: " << output << std::endl;
+    }
+    else
+    {
+        parser.printMessage();
+        return 0;
+    }
 
-    auto height = image.size().height;
-    auto width = image.size().width;
+    int frameCnt = 0;
 
-    // determine only the *output* layer nanes that we need from YOLO
-    std::vector<std::string> ln = Helper::getOutputLayerNames(net);
+    while (cv::waitKey(1) < 0)
+    {
+        frameCnt++;
 
-    /* construct a blob from the input image and then perform a forward
-    // pass of the YOLO object detector, giving us our bounding boxes and 
-    // associated probabilities */
+        // capture the image
+        if (parser.has("@video"))
+            vs >> image;
 
-    cv::Mat blob = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
-    net.setInput(blob);
-    auto start = std::chrono::steady_clock::now();
-    std::vector<cv::Mat> layerOutputs;
-    net.forward(layerOutputs, ln);
-    auto end = std::chrono::steady_clock::now();
+        if (image.empty())
+        {
+            std::cout << "[INFO] Done processing..." << std::endl;
+            break;
+        }
+        /* construct a blob from the input image and then perform a forward
+        // pass of the YOLO object detector, giving us our bounding boxes and
+        // associated probabilities */
 
-    // show timing information on YOLO
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "YOLO took " << ms / 1000.0 << " seconds" << std::endl;
+        cv::Mat blob = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
+        net.setInput(blob);
+        auto start = std::chrono::steady_clock::now();
+        std::vector<cv::Mat> layerOutputs;
+        net.forward(layerOutputs, ln);
+        auto end = std::chrono::steady_clock::now();
 
-    // get the minimum confidence and NMS threshold
-    float conf = parser.get<float>("confidence");
-    float thresh = parser.get<float>("threshold");
+        // show timing information on YOLO
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        std::cout << "processed frame: " << frameCnt << " of " << totalFrames << " in " << ms / 1000.0 << " seconds" << std::endl;
 
-    Helper::postProcess(layerOutputs, image, conf, thresh, labels);
+        // get the minimum confidence and NMS threshold
+        float conf = parser.get<float>("confidence");
+        float thresh = parser.get<float>("threshold");
 
-    // show the image output
-    cv::imshow("Image", image);
-    cv::waitKey(0);
+        Helper::postProcess(layerOutputs, image, conf, thresh, labels, colors);
+        
+        // if single image was provided, exit the loop after first pass
+        if (parser.has("@image"))
+            break;
+        
+        // write image to output file
+        cv::Mat frame;
+        image.convertTo(frame, CV_8U);
+        writer.write(frame);
+        cv::imshow("Image", image);
+    }
 
+    // if input was an image, display the image
+    if (parser.has("@image"))
+    {
+        // show the image output
+        cv::imshow("Image", image);
+        cv::waitKey(0);
+    } 
+    else if (parser.has("@video"))
+    {
+        std::cout << "[INFO] cleaning up..." << std::endl;
+        writer.release();
+        vs.release();
+    }
     return 0;
 }
 

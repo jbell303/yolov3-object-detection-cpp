@@ -42,7 +42,7 @@ public:
     // postprocessing - get the bounding boxes, confidence scores and class IDs
     // from the model output
     static void postProcess(std::vector<cv::Mat> &layerOutputs, cv::Mat &image, float conf, float thresh, 
-        std::vector<std::string> &labels)
+        std::vector<std::string> &labels, std::vector<cv::Scalar> &colors)
     {
         // initialize our lists of detected bounding boxes, confidences and
         // class IDs, respectively
@@ -91,7 +91,6 @@ public:
             for (int i : idxs)
             {
                 int classId = classIds[i];
-                std::vector<cv::Scalar> colors = getColors(labels);
                 drawPrediction(image, boxes[i], colors[classId], labels[classId], confidences[i]);
             }
         }
