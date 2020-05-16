@@ -16,6 +16,8 @@
 const std::string keys =
 "{help h usage ? || usage: object_detection.exe --image <path_to_image> --yolo <path_to_yolo_directory> --confidence 0.5 --threshold 0.3}"
 "{@image i || path to image file}"
+"{@video v || path to input video}"
+"{@output o || path to output video}"
 "{@yolo d || path to yolo model configuration directory}"
 "{confidence c |0.5| minimum probability to filter weak detections}"
 "{threshold t |0.3| threshold when applying non-maximum suppression}";
@@ -36,7 +38,6 @@ int main(int argc, char** argv)
     std::string weightsPath; // path to the weights file
     std::string configPath; // path to the model configuration file
     std::vector<std::string> labels; // class labels for model output
-    std::vector<cv::Scalar> colors; // vector of colors for our class labels
     
     // quit if the yolo directory command arg was not provided
     if (!parser.has("@yolo"))
@@ -53,36 +54,38 @@ int main(int argc, char** argv)
     while (std::getline(fstream, line))
         labels.emplace_back(line);
 
-    // select random colors for our class labels
-    for (int i = 0; i < labels.size(); i++)
-    {
-        colors.emplace_back(Helper::randomColor());
-    }
+    
 
     // derive that paths to the weights and model configuration
     weightsPath = yoloPath + "yolov3.weights";
     configPath = yoloPath + "yolov3.cfg";
 
     // load our YOLO object detector train on COCO dataset (80 classes)
-    std::cout << "loading YOLO from disk.." << std::endl;
+    std::cout << "[INFO] loading YOLO from disk.." << std::endl;
     cv::dnn::Net net = cv::dnn::readNetFromDarknet(configPath, weightsPath);
+    net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA); // use GPU if available, reverts to CPU
+    net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
 
     // load our input image and grab its spatial dimensions
-    if (!parser.has("@image"))
+    if (!parser.has("@image") && !parser.has("@video"))
     {
         parser.printMessage();
         return 0;
     }
 
-    std::string imagePath = parser.get<std::string>("@image");
     cv::Mat image;
-    try
+
+    if (parser.has("@image"))
     {
-        image = cv::imread(imagePath);
-    }
-    catch (...)
-    {
-        std::cout << "unable to load image at: " << imagePath << std::endl;
+        std::string imagePath = parser.get<std::string>("@image");
+        try
+        {
+            image = cv::imread(imagePath);
+        }
+        catch (...)
+        {
+            std::cout << "unable to load image at: " << imagePath << std::endl;
+        }
     }
 
     auto height = image.size().height;
@@ -106,43 +109,11 @@ int main(int argc, char** argv)
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "YOLO took " << ms / 1000.0 << " seconds" << std::endl;
 
-    // initialize our lists of detected bounding boxes, confidences and
-    // class IDs, respectively
-    std::vector<cv::Rect> boxes;
-    std::vector<float> confidences;
-    std::vector<int> classIds;
+    // get the minimum confidence and NMS threshold
     float conf = parser.get<float>("confidence");
+    float thresh = parser.get<float>("threshold");
 
-    Helper::postProcess(layerOutputs, image, boxes, confidences, classIds, conf);
-
-    // apply non-maxima suppression to suppress weak, overlapping bounding
-    // boxes
-    std::vector<int> idxs;
-    cv::dnn::NMSBoxes(boxes, confidences, conf,
-        parser.get<float>("threshold"), idxs);
-
-    // ensure at least one detection exists
-    if (idxs.size() > 0)
-    {
-        // loop over the indexes we are keeping
-        for (int i : idxs)
-        {
-            // extract the bounding box coordinates
-            auto x = boxes[i].x;
-            auto y = boxes[i].y;
-            auto w = boxes[i].width;
-            auto h = boxes[i].height;
-
-            // draw a bounding box rectangle and label on the image
-            cv::Scalar color = colors[classIds[i]];
-            cv::rectangle(image, cv::Rect(x, y, w, h), color, 2);
-            std::ostringstream stringstream;
-            stringstream << labels[classIds[i]] << ": " << cv::format("%.3f", confidences[i]);
-            std::string text = stringstream.str();
-            cv::putText(image, text, cv::Point(x, y - 5), cv::FONT_HERSHEY_SIMPLEX,
-                0.5, color, 2);
-        }
-    }
+    Helper::postProcess(layerOutputs, image, conf, thresh, labels);
 
     // show the image output
     cv::imshow("Image", image);

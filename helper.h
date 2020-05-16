@@ -15,6 +15,18 @@ public:
         return cv::Scalar(rand() % 255, rand() % 255, rand() % 255);
     }
 
+    // generate random colors for class labels
+    static std::vector<cv::Scalar> getColors(std::vector<std::string>& labels)
+    {
+        std::vector<cv::Scalar> colors; // vector of colors for our class labels
+        // select random colors for our class labels
+        for (int i = 0; i < labels.size(); i++)
+        {
+            colors.emplace_back(randomColor());
+        }
+        return colors;
+    }
+
     // get output layer names
     static std::vector<std::string> getOutputLayerNames(const cv::dnn::Net& net)
     {
@@ -22,21 +34,27 @@ public:
         std::vector<std::string> outputLayers;
         for (auto i : net.getUnconnectedOutLayers())
         {
-            outputLayers.push_back(layerNames[(double)i - 1]);
+            outputLayers.push_back(layerNames[i - 1]);
         }
         return outputLayers;
     }
 
     // postprocessing - get the bounding boxes, confidence scores and class IDs
     // from the model output
-    static void postProcess(std::vector<cv::Mat>& layerOutputs, cv::Mat& image, std::vector<cv::Rect>& boxes,
-        std::vector<float>& confidences, std::vector<int>& classIds, float conf)
+    static void postProcess(std::vector<cv::Mat> &layerOutputs, cv::Mat &image, float conf, float thresh, 
+        std::vector<std::string> &labels)
     {
+        // initialize our lists of detected bounding boxes, confidences and
+        // class IDs, respectively
+        std::vector<cv::Rect> boxes;
+        std::vector<float> confidences;
+        std::vector<int> classIds;
+        
         // loop over each of the layer outputs
         for (size_t i = 0; i < layerOutputs.size(); ++i)
         {
             float* data = (float*)layerOutputs[i].data;
-            for (int j = 0; j < layerOutputs[i].rows; ++j, data += layerOutputs[i].cols)
+            for (int j = 0; j < layerOutputs[i].rows; ++j)
             {
                 cv::Mat scores = layerOutputs[i].row(j).colRange(5, layerOutputs[i].cols);
                 cv::Point classIdPoint;
@@ -56,8 +74,39 @@ public:
                     confidences.push_back((float)confidence);
                     boxes.push_back(cv::Rect(left, top, width, height));
                 }
+                data += layerOutputs[i].cols;
             }
         }
+
+        // apply non-maxima suppression to suppress weak, overlapping bounding
+        // boxes
+        std::vector<int> idxs;
+        cv::dnn::NMSBoxes(boxes, confidences, conf,
+            thresh, idxs); 
+
+        // ensure at least one detection exists
+        if (idxs.size() > 0)
+        {
+            // loop over the indexes we are keeping
+            for (int i : idxs)
+            {
+                int classId = classIds[i];
+                std::vector<cv::Scalar> colors = getColors(labels);
+                drawPrediction(image, boxes[i], colors[classId], labels[classId], confidences[i]);
+            }
+        }
+    }
+
+    static void drawPrediction(cv::Mat &image, cv::Rect box, cv::Scalar color, std::string label,
+        float confidence)
+    {
+        // draw a bounding box rectangle and label on the image
+        cv::rectangle(image, cv::Rect(box.x, box.y, box.width, box.height), color, 2);
+        std::ostringstream stringstream;
+        stringstream << label << ": " << cv::format("%.3f", confidence);
+        std::string text = stringstream.str();
+        cv::putText(image, text, cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX,
+            0.5, color, 2);
     }
 };
 #endif // !HELPER
