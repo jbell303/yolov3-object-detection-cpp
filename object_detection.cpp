@@ -12,6 +12,9 @@
 // include helper file
 #include "helper.h"
 
+// include message queue
+#include "message_queue.h"
+
 // parse the command line arguments
 const std::string keys =
 "{help h usage ? || usage: object_detection.exe --image <path_to_image> --yolo <path_to_yolo_directory> --confidence 0.5 --threshold 0.3}"
@@ -74,6 +77,7 @@ int main(int argc, char** argv)
     cv::Mat image;
     cv::VideoCapture vs;
     cv::VideoWriter writer;
+    std::string output;
     int totalFrames;
 
     if (parser.has("@image"))
@@ -99,11 +103,11 @@ int main(int argc, char** argv)
         }
         catch (...)
         {
-            std::cout << "unagle to load video at: " << videoPath << std::endl;
+            std::cout << "unable to load video at: " << videoPath << std::endl;
             return 0;
         }
         auto fourcc = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
-        std::string output = parser.get<std::string>("@output");
+        output = parser.get<std::string>("@output");
         try
         {
             writer = cv::VideoWriter(output, fourcc, 30,
@@ -111,7 +115,7 @@ int main(int argc, char** argv)
         }
         catch (...)
         {
-            std::cout << "unagle to create video at: " << output << std::endl;
+            std::cout << "unable to create video at: " << output << std::endl;
             return 0;
         }
         std::cout << "[INFO] processing video file: " << output << std::endl;
@@ -123,7 +127,79 @@ int main(int argc, char** argv)
     }
 
     int frameCnt = 0;
+    int asyncNumReq = 0;
 
+#ifdef CV_CXX11
+    bool process = true;
+
+    // frames capture thread
+    std::shared_ptr<MessageQueue<cv::Mat>> framesQueue(new MessageQueue<cv::Mat>);
+    std::thread framesThread([&]() {
+        cv::Mat frame;
+        while (process)
+        {
+            vs >> frame;
+            if (!frame.empty())
+            {
+                framesQueue->send(std::move(frame));
+            }
+            else
+                break;
+        }
+    });
+
+    // frames processing thread
+    std::shared_ptr<MessageQueue<cv::Mat>> processedFramesQueue(new MessageQueue<cv::Mat>);
+    std::shared_ptr<MessageQueue<std::vector<cv::Mat>>> predictionsQueue(new MessageQueue<std::vector<cv::Mat>>);
+    std::thread processingThread([&]() {
+        while (process)
+        {
+            // get next frame
+            cv::Mat frame = framesQueue->receive();
+
+            // process the frame
+            if (!frame.empty())
+            {
+                cv::Mat blob = cv::dnn::blobFromImage(frame, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
+                net.setInput(blob);
+                std::vector<cv::Mat> layerOutputs;
+                net.forward(layerOutputs, ln);
+                predictionsQueue->send(std::move(layerOutputs));
+                processedFramesQueue->send(std::move(frame)); 
+                frame.release();
+                blob.release();
+            }
+        }
+    });
+
+    // postprocessing and rendering loop
+    while (cv::waitKey(1) < 0)
+    {
+        std::vector<cv::Mat> outs = predictionsQueue->receive();
+        cv::Mat frame = processedFramesQueue->receive();
+
+        // get the minimum confidence and NMS threshold
+        float conf = parser.get<float>("confidence");
+        float thresh = parser.get<float>("threshold");
+
+        Helper::postProcess(outs, frame, conf, thresh, labels, colors);
+
+        // if single image was provided, exit the loop after first pass
+        if (parser.has("@image"))
+            break;
+
+        // write image to output file
+        cv::Mat convertedFrame;
+        frame.convertTo(convertedFrame, CV_8U);
+        writer.write(convertedFrame);
+        cv::imshow("Image", frame);
+    }
+
+    process = false;
+    framesThread.join();
+    processingThread.join();
+    
+#else
     while (cv::waitKey(1) < 0)
     {
         frameCnt++;
@@ -134,12 +210,12 @@ int main(int argc, char** argv)
 
         if (image.empty())
         {
-            std::cout << "[INFO] Done processing..." << std::endl;
+            std::cout << "[INFO] Done processing video: " << output << std::endl;
             break;
         }
-        /* construct a blob from the input image and then perform a forward
+        // construct a blob from the input image and then perform a forward
         // pass of the YOLO object detector, giving us our bounding boxes and
-        // associated probabilities */
+        // associated probabilities
 
         cv::Mat blob = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
         net.setInput(blob);
@@ -168,6 +244,7 @@ int main(int argc, char** argv)
         writer.write(frame);
         cv::imshow("Image", image);
     }
+#endif
 
     // if input was an image, display the image
     if (parser.has("@image"))
