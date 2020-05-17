@@ -155,7 +155,9 @@ int main(int argc, char** argv)
         while (process)
         {
             // get next frame
-            cv::Mat frame = framesQueue->receive();
+            cv::Mat frame;
+            if (frameCnt < totalFrames)
+                 frame = framesQueue->receive();
 
             // process the frame
             if (!frame.empty())
@@ -175,6 +177,18 @@ int main(int argc, char** argv)
     // postprocessing and rendering loop
     while (cv::waitKey(1) < 0)
     {
+        frameCnt++;
+
+        // if we have processed all the frames, break
+        if (frameCnt > totalFrames)
+        {
+            std::cout << "[INFO] Done processing video: " << output << std::endl;
+            break;
+        }
+
+        std::cout << "processing frame: " << frameCnt << " of: " << totalFrames << std::endl;
+
+        // get current frame and predictions
         std::vector<cv::Mat> outs = predictionsQueue->receive();
         cv::Mat frame = processedFramesQueue->receive();
 
