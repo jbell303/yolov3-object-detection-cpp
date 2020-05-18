@@ -1,5 +1,5 @@
 # YOLOv3 Object Detection C++ with OpenCV
-#### Udacity C++ Nanodegree Capstone Project (option 1) - Clone of PyImageSearch OpenCV Object Detection Tutorial
+#### Udacity C++ Nanodegree Capstone Project (option 1) - Deployment of Neural Network
 ![dog](https://github.com/jbell303/yolov3-object-detection-cpp/blob/master/images/sf_processed.PNG)
 
 ## About
