@@ -23,7 +23,8 @@ const std::string keys =
 "{@output o || path to output video}"
 "{@yolo d || path to yolo model configuration directory}"
 "{confidence c |0.5| minimum probability to filter weak detections}"
-"{threshold t |0.3| threshold when applying non-maximum suppression}";
+"{threshold t |0.3| threshold when applying non-maximum suppression}"
+"{async a |true| use async protocol}";
 
 int main(int argc, char** argv)
 {
@@ -129,151 +130,155 @@ int main(int argc, char** argv)
 
     int frameCnt = 0;
     auto startTime = std::chrono::steady_clock::now();
+    bool async = parser.get<bool>("async");
 
-#ifdef CV_CXX11
-    bool process = true;
+    if (async)
+    {
+        bool process = true;
 
-    // frames capture thread
-    std::shared_ptr<MessageQueue<cv::Mat>> framesQueue(new MessageQueue<cv::Mat>);
-    std::thread framesThread([&]() {
-        cv::Mat frame;
-        while (process)
-        {
-            // grab the image parsed earlier or grab a frame from video capture
-            if (parser.has("@image"))
-                frame = image;
-            else
-                vs >> frame;
-            
-            if (!frame.empty())
-            {
-                framesQueue->send(std::move(frame));
-            }
-            else
-                break;
-        }
-    });
-
-    // frames processing thread
-    std::shared_ptr<MessageQueue<cv::Mat>> processedFramesQueue(new MessageQueue<cv::Mat>);
-    std::shared_ptr<MessageQueue<std::vector<cv::Mat>>> predictionsQueue(new MessageQueue<std::vector<cv::Mat>>);
-    std::thread processingThread([&]() {
-        while (process)
-        {
-            // get next frame
+        // frames capture thread
+        std::shared_ptr<MessageQueue<cv::Mat>> framesQueue(new MessageQueue<cv::Mat>);
+        std::thread framesThread([&]() {
             cv::Mat frame;
-            if (frameCnt < totalFrames)
-                 frame = framesQueue->receive();
-
-            // process the frame
-            if (!frame.empty())
+            while (process)
             {
-                cv::Mat blob = cv::dnn::blobFromImage(frame, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
-                net.setInput(blob);
-                std::vector<cv::Mat> layerOutputs;
-                net.forward(layerOutputs, ln);
-                predictionsQueue->send(std::move(layerOutputs));
-                processedFramesQueue->send(std::move(frame)); 
-                frame.release();
-                blob.release();
+                // grab the image parsed earlier or grab a frame from video capture
+                if (parser.has("@image"))
+                    frame = image;
+                else
+                    vs >> frame;
+
+                if (!frame.empty())
+                {
+                    framesQueue->send(std::move(frame));
+                }
+                else
+                    break;
             }
-        }
-    });
+        });
 
-    // postprocessing and rendering loop
-    while (cv::waitKey(1) < 0)
-    {
-        frameCnt++;
+        // frames processing thread
+        std::shared_ptr<MessageQueue<cv::Mat>> processedFramesQueue(new MessageQueue<cv::Mat>);
+        std::shared_ptr<MessageQueue<std::vector<cv::Mat>>> predictionsQueue(new MessageQueue<std::vector<cv::Mat>>);
+        std::thread processingThread([&]() {
+            while (process)
+            {
+                // get next frame
+                cv::Mat frame;
+                if (frameCnt < totalFrames)
+                    frame = framesQueue->receive();
 
-        // if we have processed all the frames, break
-        if (frameCnt > totalFrames)
+                // process the frame
+                if (!frame.empty())
+                {
+                    cv::Mat blob = cv::dnn::blobFromImage(frame, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
+                    net.setInput(blob);
+                    std::vector<cv::Mat> layerOutputs;
+                    net.forward(layerOutputs, ln);
+                    predictionsQueue->send(std::move(layerOutputs));
+                    processedFramesQueue->send(std::move(frame));
+                    frame.release();
+                    blob.release();
+                }
+            }
+        });
+
+        // postprocessing and rendering loop
+        while (cv::waitKey(1) < 0)
         {
-            auto endTime = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-            std::cout << "[INFO] Done processing: " << totalFrames << " frames in " << elapsed / 1000 << " seconds" << std::endl;
-            std::cout << "[INFO] Video created: " << output << std::endl;
-            break;
+            frameCnt++;
+
+            // if we have processed all the frames, break
+            if (frameCnt > totalFrames)
+            {
+                auto endTime = std::chrono::steady_clock::now();
+                float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+                std::cout << "[INFO] Done processing: " << totalFrames << " frames in " << elapsed / 1000 << " seconds" << std::endl;
+                std::cout << "[INFO] Video created: " << output << std::endl;
+                break;
+            }
+
+            std::cout << "processing frame: " << frameCnt << " of: " << totalFrames << std::endl;
+
+            // get current frame and predictions
+            std::vector<cv::Mat> outs = predictionsQueue->receive();
+            cv::Mat frame = processedFramesQueue->receive();
+
+            // get the minimum confidence and NMS threshold
+            float conf = parser.get<float>("confidence");
+            float thresh = parser.get<float>("threshold");
+
+            Helper::postProcess(outs, frame, conf, thresh, labels, colors);
+
+            // if single image was provided, exit the loop after first pass
+            if (parser.has("@image"))
+            {
+                auto endTime = std::chrono::steady_clock::now();
+                float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+                std::cout << "[INFO] Done processing in: " << elapsed / 1000 << " seconds" << std::endl;
+                break;
+            }
+
+
+            // write image to output file
+            cv::Mat convertedFrame;
+            frame.convertTo(convertedFrame, CV_8U);
+            writer.write(convertedFrame);
+            cv::imshow("Image", frame);
         }
 
-        std::cout << "processing frame: " << frameCnt << " of: " << totalFrames << std::endl;
+        process = false;
+        framesThread.join();
+        processingThread.join();
 
-        // get current frame and predictions
-        std::vector<cv::Mat> outs = predictionsQueue->receive();
-        cv::Mat frame = processedFramesQueue->receive();
-
-        // get the minimum confidence and NMS threshold
-        float conf = parser.get<float>("confidence");
-        float thresh = parser.get<float>("threshold");
-
-        Helper::postProcess(outs, frame, conf, thresh, labels, colors);
-
-        // if single image was provided, exit the loop after first pass
-        if (parser.has("@image"))
-        {
-            auto endTime = std::chrono::steady_clock::now();
-            float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-            std::cout << "[INFO] Done processing in: " << elapsed / 1000 << " seconds" << std::endl;
-            break;
-        }
-            
-
-        // write image to output file
-        cv::Mat convertedFrame;
-        frame.convertTo(convertedFrame, CV_8U);
-        writer.write(convertedFrame);
-        cv::imshow("Image", frame);
     }
-
-    process = false;
-    framesThread.join();
-    processingThread.join();
-    
-#else
-    while (cv::waitKey(1) < 0)
+    else
     {
-        frameCnt++;
-
-        // capture the image
-        if (parser.has("@video"))
-            vs >> image;
-
-        if (image.empty())
+        while (cv::waitKey(1) < 0)
         {
-            std::cout << "[INFO] Done processing video: " << output << std::endl;
-            break;
+            frameCnt++;
+
+            // capture the image
+            if (parser.has("@video"))
+                vs >> image;
+
+            if (image.empty())
+            {
+                std::cout << "[INFO] Done processing video: " << output << std::endl;
+                break;
+            }
+            // construct a blob from the input image and then perform a forward
+            // pass of the YOLO object detector, giving us our bounding boxes and
+            // associated probabilities
+
+            cv::Mat blob = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
+            net.setInput(blob);
+            auto start = std::chrono::steady_clock::now();
+            std::vector<cv::Mat> layerOutputs;
+            net.forward(layerOutputs, ln);
+            auto end = std::chrono::steady_clock::now();
+
+            // show timing information on YOLO
+            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+            std::cout << "processed frame: " << frameCnt << " of " << totalFrames << " in " << ms / 1000.0 << " seconds" << std::endl;
+
+            // get the minimum confidence and NMS threshold
+            float conf = parser.get<float>("confidence");
+            float thresh = parser.get<float>("threshold");
+
+            Helper::postProcess(layerOutputs, image, conf, thresh, labels, colors);
+
+            // if single image was provided, exit the loop after first pass
+            if (parser.has("@image"))
+                break;
+
+            // write image to output file
+            cv::Mat frame;
+            image.convertTo(frame, CV_8U);
+            writer.write(frame);
+            cv::imshow("Image", image);
         }
-        // construct a blob from the input image and then perform a forward
-        // pass of the YOLO object detector, giving us our bounding boxes and
-        // associated probabilities
-
-        cv::Mat blob = cv::dnn::blobFromImage(image, 1 / 255.0, cv::Size(416, 416), cv::Scalar(0, 0, 0), true, false);
-        net.setInput(blob);
-        auto start = std::chrono::steady_clock::now();
-        std::vector<cv::Mat> layerOutputs;
-        net.forward(layerOutputs, ln);
-        auto end = std::chrono::steady_clock::now();
-
-        // show timing information on YOLO
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        std::cout << "processed frame: " << frameCnt << " of " << totalFrames << " in " << ms / 1000.0 << " seconds" << std::endl;
-
-        // get the minimum confidence and NMS threshold
-        float conf = parser.get<float>("confidence");
-        float thresh = parser.get<float>("threshold");
-
-        Helper::postProcess(layerOutputs, image, conf, thresh, labels, colors);
-        
-        // if single image was provided, exit the loop after first pass
-        if (parser.has("@image"))
-            break;
-        
-        // write image to output file
-        cv::Mat frame;
-        image.convertTo(frame, CV_8U);
-        writer.write(frame);
-        cv::imshow("Image", image);
     }
-#endif
 
     // if input was an image, display the image
     if (parser.has("@image"))
@@ -284,6 +289,9 @@ int main(int argc, char** argv)
     } 
     else if (parser.has("@video"))
     {
+        auto endTime = std::chrono::steady_clock::now();
+        float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        std::cout << "[INFO] Done processing: " << totalFrames << " frames in " << elapsed / 1000 << " seconds" << std::endl;
         std::cout << "[INFO] cleaning up..." << std::endl;
         writer.release();
         vs.release();
