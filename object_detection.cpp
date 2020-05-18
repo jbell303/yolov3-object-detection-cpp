@@ -128,7 +128,7 @@ int main(int argc, char** argv)
     }
 
     int frameCnt = 0;
-    int asyncNumReq = 0;
+    auto startTime = std::chrono::steady_clock::now();
 
 #ifdef CV_CXX11
     bool process = true;
@@ -188,7 +188,10 @@ int main(int argc, char** argv)
         // if we have processed all the frames, break
         if (frameCnt > totalFrames)
         {
-            std::cout << "[INFO] Done processing video: " << output << std::endl;
+            auto endTime = std::chrono::steady_clock::now();
+            float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+            std::cout << "[INFO] Done processing: " << totalFrames << " frames in " << elapsed / 1000 << " seconds" << std::endl;
+            std::cout << "[INFO] Video created: " << output << std::endl;
             break;
         }
 
@@ -206,7 +209,13 @@ int main(int argc, char** argv)
 
         // if single image was provided, exit the loop after first pass
         if (parser.has("@image"))
+        {
+            auto endTime = std::chrono::steady_clock::now();
+            float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+            std::cout << "[INFO] Done processing in: " << elapsed / 1000 << " seconds" << std::endl;
             break;
+        }
+            
 
         // write image to output file
         cv::Mat convertedFrame;
