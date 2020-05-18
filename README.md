@@ -58,7 +58,7 @@ Concurrency.3 - `message_queue` lines 19, 34, 48 (not used)
 Concurrency.4 - `message_queue` lines 22, 38  
 
 ## References
-This project is similar to the OpenCV Object Detection Tutorial [here](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.py) and [this](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/) tutorial.
+This project is similar to the OpenCV Object Detection Tutorial [here](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.cpp) and [this](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/) tutorial.
 
 Notably, this project attempts to use the async protocol from the OpenCV tutorial, however, I could not get async to process video files properly, so I changed the `Message Queue` class to that of the Concurrency module in the Udacity course.
 
