@@ -3,12 +3,12 @@
 ![dog](https://github.com/jbell303/yolov3-object-detection-cpp/blob/master/images/dog_processed.PNG)
 
 ## About
-This is a C++ version of [this](https://www.pyimagesearch.com/2018/11/12/yolo-object-detection-with-opencv/) blog post by [PyImageSearch](pyimagesearch.com).
-YOLO (You only look once) is an object detection algorithm by [Joseph Redmon](pjreddie.com).
+This is a C++ version of [this](https://www.pyimagesearch.com/2018/11/12/yolo-object-detection-with-opencv/) blog post by [PyImageSearch](https://pyimagesearch.com).
+YOLO (You only look once) is an object detection algorithm by [Joseph Redmon](https://pjreddie.com).
 
 ## Requirements
 **CMake** >=2.8  
-**OpenCV** >=3.3 You will need download [OpenCV](opencv.org) to build this project. Pre-built binaries can be found [here](opencv.org/releases). Version 3.3 or higher is required to use the DNN module.
+**OpenCV** >=3.3 You will need download [OpenCV](https://opencv.org) to build this project. Pre-built binaries can be found [here](opencv.org/releases). Version 3.3 or higher is required to use the DNN module.
 
 **YOLOv3 weights** You can download the YOLOv3 weights file [here](https://pjreddie.com/media/files/yolov3.weights)
 
