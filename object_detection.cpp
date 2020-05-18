@@ -86,6 +86,7 @@ int main(int argc, char** argv)
         try
         {
             image = cv::imread(imagePath);
+            totalFrames = 1;
         }
         catch (...)
         {
@@ -138,7 +139,12 @@ int main(int argc, char** argv)
         cv::Mat frame;
         while (process)
         {
-            vs >> frame;
+            // grab the image parsed earlier or grab a frame from video capture
+            if (parser.has("@image"))
+                frame = image;
+            else
+                vs >> frame;
+            
             if (!frame.empty())
             {
                 framesQueue->send(std::move(frame));
