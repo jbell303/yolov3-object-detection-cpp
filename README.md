@@ -50,10 +50,10 @@ OOP.3 - `helper.h` lines 19, 31, 44, 99
 OOP.4 - `helper.h`
 OOP.9 - `message_queue.h` line 10  
 Memory.1 - `helper.h` lines 19, 31, 44, 99  
-Memory.3 - `object_detection.cpp` lines 140, 161, 162 
+Memory.3 - `object_detection.cpp` lines 142, 163, 164 
 Memory.5 - `message_queue.cpp` lines 25, 37 `object_detection` lines 150, 175, 176  
-Memory.6 - `object_detection.cpp` lines 140, 161, 162  
-Concurrency.1 - `object_detection` lines 141, 163  
+Memory.6 - `object_detection.cpp` lines 142, 163, 164  
+Concurrency.1 - `object_detection` lines 143, 165  
 Concurrency.3 - `message_queue` lines 19, 34, 48 (not used)  
 Concurrency.4 - `message_queue` lines 22, 38  
 
