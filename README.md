@@ -1,10 +1,10 @@
-# YOLOv3 Object Detection C++
+# YOLOv3 Object Detection C++ with OpenCV
 #### Udacity C++ Nanodegree Capstone Project (option 1) - Clone of PyImageSearch OpenCV Object Detection Tutorial
-![dog](https://github.com/jbell303/yolov3-object-detection-cpp/blob/master/images/dog_processed.PNG)
+![dog](https://github.com/jbell303/yolov3-object-detection-cpp/blob/master/images/sf_processed.PNG)
 
 ## About
 This is a C++ version of [this](https://www.pyimagesearch.com/2018/11/12/yolo-object-detection-with-opencv/) blog post by [PyImageSearch](https://pyimagesearch.com).
-YOLO (You only look once) is an object detection algorithm by [Joseph Redmon](https://pjreddie.com).
+YOLO (You only look once) is an object detection algorithm by [Joseph Redmon](https://pjreddie.com) and Ali Faradhi.
 
 ## Requirements
 **CMake** >=2.8  
@@ -42,7 +42,7 @@ This is a basic script with two helper classes `helper.h` and `message_queue.h`.
 
 ## Rubric Points
 Loops.1 - `helper.h` all functions  
-Loops.2 - `object_detection.cpp` lines 88, 102  
+Loops.2 - `object_detection.cpp` lines 89, 103  
 Loops.3 - `object_detection.cpp` line 19  
 OOP.1 - `helper.h`, `message_queue.h`  
 OOP.2 - `message_queue.h` lines 13, 53  
@@ -50,15 +50,18 @@ OOP.3 - `helper.h` lines 19, 31, 44, 99
 OOP.4 - `helper.h`
 OOP.9 - `message_queue.h` line 10  
 Memory.1 - `helper.h` lines 19, 31, 44, 99  
-Memory.3 - `object_detection.cpp` lines 137, 158, 159  
+Memory.3 - `object_detection.cpp` lines 140, 161, 162 
 Memory.5 - `message_queue.cpp` lines 25, 37 `object_detection` lines 150, 175, 176  
-Memory.6 - `object_detection.cpp` lines 137, 158, 159  
-Concurrency.1 - `object_detection` lines 138, 160  
+Memory.6 - `object_detection.cpp` lines 140, 161, 162  
+Concurrency.1 - `object_detection` lines 141, 163  
 Concurrency.3 - `message_queue` lines 19, 34, 48 (not used)  
 Concurrency.4 - `message_queue` lines 22, 38  
 
 ## References
-This project is similar to the OpenCV Object Detection Tutorial [here](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.cpp) and [this](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/) tutorial.
+* [YOLOv3: An Incremental Improvement](https://arxiv.org/abs/1804.02767) by Joseph Redmon and Ali Faradhi
+* OpenCV Object Detection C++ [Tutorial](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.cpp)
+* learnopencv [tutorial](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/).
+* [YOLOv4](https://github.com/AlexeyAB/darknet) - Neural Networks for Object Detection (Windows and Linux version of Darknet)  
 
 Notably, this project attempts to use the async protocol from the OpenCV tutorial, however, I could not get async to process video files properly, so I changed the `Message Queue` class to that of the Concurrency module in the Udacity course.
 
