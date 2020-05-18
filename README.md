@@ -12,4 +12,36 @@ YOLO (You only look once) is an object detection algorithm by [Joseph Redmon](pj
 **YOLOv3 weights** You can download the YOLOv3 weights file [here](https://pjreddie.com/media/files/yolov3.weights)
 
 ## Installation
-Clone this repo `git clone https://github.com/jbell303/yolov3-object-detection-cpp.git`
+Clone this repo `git clone https://github.com/jbell303/yolov3-object-detection-cpp.git`  
+Place the `yolov3.weights` file downloaded earlier into the `yolo-coco` folder.  
+
+### Linux / Mac
+`cd` into the project folder
+```
+mkdir build && cd build  
+cmake .. && make
+```
+
+### Windows
+`cd` into the project folder
+```
+mkdir build && cd build
+cmake -G "Visual Studio 16 2019" ..
+cmake --build . --config Release --target INSTALL
+```
+
+## Usage
+`./object detector -i<path/to/image> -d <path/to/yolo/directory>`  
+You can run object detection on a video with `-v <path/to/video> -o <path/to/output>` instead of `-i`
+
+GPU - OpenCV will try to use the DNN backend with CUDA support if the DNN module was build with CUDA. Otherwise it will revert to CPU.
+
+## Summary
+This is a basic script with two helper classes `helper.h` and `message_queue.h`. The `Helper` class abstracts some of the pre and post-processing functions. `MessageQueue` allows for asynchronous execution of image pre-processing which is marginally helpful during video detection. A possible improvement would be to use the `net.forwardAsync()` for forward passes through the network, but the backend of my OpenCV build did not support it. 
+
+## References
+This project is similar to the OpenCV Object Detection Tutorial [here](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.py) and [this](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/) tutorial.
+
+Notably, this project attempts to use the async protocol from the OpenCV tutorial, however, I could not get async to work properly on my machine. So, I changed the `Message Queue` class to that of the Concurrency module in the Udacity course.
+
+
