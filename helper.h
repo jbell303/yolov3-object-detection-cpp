@@ -51,6 +51,7 @@ public:
         std::vector<int> classIds;
         
         // loop over each of the layer outputs
+        // https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.cpp lines 368-391
         for (size_t i = 0; i < layerOutputs.size(); ++i)
         {
             float* data = (float*)layerOutputs[i].data;
