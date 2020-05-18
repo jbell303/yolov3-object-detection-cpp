@@ -132,6 +132,8 @@ int main(int argc, char** argv)
     auto startTime = std::chrono::steady_clock::now();
     bool async = parser.get<bool>("async");
 
+    // async protocol from OpenCV sample, though some implemenation varies
+    // https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.cpp
     if (async)
     {
         bool process = true;
