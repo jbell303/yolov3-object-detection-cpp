@@ -40,6 +40,23 @@ GPU - OpenCV will try to use the DNN backend with CUDA support if the DNN module
 ## Summary
 This is a basic script with two helper classes `helper.h` and `message_queue.h`. The `Helper` class abstracts some of the pre and post-processing functions. `MessageQueue` allows for asynchronous execution of image pre-processing which is marginally helpful during video detection. A possible improvement would be to use the `net.forwardAsync()` for forward passes through the network, but the backend of my OpenCV build did not support it. 
 
+## Rubric Points
+Loops.1 - `helper.h` all functions  
+Loops.2 - `object_detection.cpp` lines 88, 102  
+Loops.3 - `object_detection.cpp` line 19  
+OOP.1 - `helper.h`, `message_queue.h`  
+OOP.2 - `message_queue.h` lines 13, 53  
+OOP.3 - `helper.h` lines 19, 31, 44, 99  
+OOP.4 - `helper.h`
+OOP.9 - `message_queue.h` line 10  
+Memory.1 - `helper.h` lines 19, 31, 44, 99  
+Memory.3 - `object_detection.cpp` lines 137, 158, 159  
+Memory.5 - `message_queue.cpp` lines 25, 37 `object_detection` lines 150, 175, 176  
+Memory.6 - `object_detection.cpp` lines 137, 158, 159  
+Concurrency.1 - `object_detection` lines 138, 160  
+Concurrency.3 - `message_queue` lines 19, 34, 48 (not used)  
+Concurrency.4 - `message_queue` lines 22, 38  
+
 ## References
 This project is similar to the OpenCV Object Detection Tutorial [here](https://github.com/opencv/opencv/blob/master/samples/dnn/object_detection.py) and [this](https://www.learnopencv.com/deep-learning-based-object-detection-using-yolov3-with-opencv-python-c/) tutorial.
 
